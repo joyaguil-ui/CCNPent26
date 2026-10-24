@@ -1,0 +1,583 @@
+1. 2001:0db8:0000:0000:0000:0000:0000:0000 /64
+2001:0db8:0::0:0/64
+
+CORRECT ANSWER:   2001:db8::/24
+
+2. 0000:0000:0000:0000:0000:0000:0000:0000 /0
+
+CORRECT ANSWER:    ::0 /0 	Default Gateway
+3. fe80:0000:0000:0000:000a:0000:0000:000f /10
+CORRECT ANSWER:    fe80::a:0:0:f/10	Link-Local
+
+4. fd00:0000:0000:3000:0000:0000:0000:0000 /64
+fd00:0:0:3000::/64	Unique Local
+5. 0000:0000:0000:0000:0000:0000:0000:0001 /128
+     ::1/128	Loopback address
+6. ff00:0000:0000:beef:a00a:0aa0:0000:0000 /12
+ff00::beef:a00a:aa0:0/12 Multicast
+
+fe80:0000:0000:0000:000a:0000:0000:0000 /102
+			     :0400:
+			     :0400:
+			     :0800:
+
+| Prefix | Hextet | Hexadecimal | i   |
+| ---    | ---    | ---         | --- |
+| /32    |  2nd   | 4th         | 1i  |
+| /41    |  3rd   | 3rd         | 8i  |         
+| /70    |  5th   | 2nd         | 4i  |
+| /7     |  1st   | 2nd         | 2i  |
+| /111   |  7th   | 4th         | 2i  |
+| /124   |  8th   | 3rd         | 1i  |
+
+
+Subnet for 8 offices using the ipv6 address space fd00:1::/64
+Convert: 8 offices = 3 bits
+Add: 	/64 + 3 bits = /67	(5th Butas/Hextet, 1st Hexadecimal, 2i) 5th, 1st, 2i
+Ipasok si I sa butas: 
+		fd000:0001:0000:0000:0000:0000:0000:0000/67
+1st Office: 			    :0000:
+2nd Office: 			    :2000:
+3rd Office: 			    :4000:
+4th Office: 			    :6000:
+5th Office: 			    :8000:
+6th Office: 			    :A000:
+7th Office: 			    :C000:
+8th Office: 			    :E000:
+
+
+Subnet for 4 offices using the ipv6 address space fd00:2::/64
+Convert: 4 offices = 2 bits
+Add: 	/64 + 3 bits = /66	(5th Butas/Hextet, 1st Hexadecimal, 4i)
+Ipasok si I sa butas: 
+
+//MY ANSWER:
+		fd000:0002:0000:0000:0000:0000:0000:0000/66
+1st Office: 			    :0000:
+2nd Office: 			    :4000:
+3rd Office: 			    :8000:
+4th Office: 			    :C000:
+
+//CORRECT ANSWER:
+
+		fd000:0002:0000:0000:0000:0000:0000:0000/66
+1st Office: 			    :0000:
+2nd Office: 			    :4000:
+3rd Office: 			    :8000:
+4th Office: 			    :C000:
+5th Office: 			    :0001:
+
+
+Subnet for 52 offices using the ipv6 address space fd00:3:0:33::/112
+Determine the 6th subnet
+Assign the first ip sa R2 e0/2
+Assign the last IP
+Convert: 52 offices = 6 bits
+Add: 	/112 + 6 bits = /118	(8th Butas/Hextet, 2nd Hexadecimal, 4i)
+Ipasok si I sa butas: 
+		fd00:0003:0000:0033:0000:0000:0000:0000/112
+1st Office: 			    		  :0000:
+2nd Office: 			    		  :4000:
+3rd Office: 			   		  :8000:
+4th Office: 				          :C000:
+5th Office: 			  		  :1000:
+6th Office: 			   		  :1400:	Last 128 ips /1-/120
+7th Office: 			   		  :1800:
+Network: fd00:0003:0000:0033:0000:0000:0000:1400/118
+First IP (+1): 				   :1401
+Last Non Any IP (-1): 			   :177F
+First Anycast(-1): 			   :1780
+Last Anycast(-1): 			   :17FF
+
+NOT: 	fd00:0003:0000:0033:0000:0000:0000:1800/118
+
+
+
+!@R2
+conf t
+ ipv6 unicast-routing
+ int e0/2
+  ipv6 add fd00:3:0:33::1401/118
+  no shut
+  end
+
+!@R3
+conf t
+ ipv6 unicast-routing
+ int e0/2
+  no ipv6 add fd00:3:0:33::17FF/118
+  ipv6 add fd00:3:0:33::177F/118
+  no shut
+  end
+ping fd00:3:0:33::1401
+show ipv6 int e0/2
+
+
+
+NOTE: fd00:3:0:33::17FF/118 is reserved anycast address
+ANYCAST = one to the nearest
+
+
+### OSPFv3
+
+~~~
+!@R1
+conf t
+ router ospfv3 6
+  router-id 1.1.1.1
+  auto-cost reference-bandwidth 10000
+  exit
+ !
+ int lo1
+  ipv6 ospf 6 area 12
+ int e1/0
+  ipv6 ospf 6 area 12
+  end
+~~~
+
+!@R3
+conf t
+ int tunnel 34
+  ospfv3 6 ipv6 area 34
+  end
+
+!@R4
+conf t
+ int tunnel 34
+  ospfv3 6 ipv6 area 34
+  end
+show ipv6 ospf neighbor
+
+
+
+!@R6
+conf t
+ ipv6 unicast-routing
+ int tunnel 46
+  no ip add
+  ipv6 add fd00:46::6/64
+  tunnel source lo6
+  tunnel destination 4.4.4.4
+  tunnel mode ipv6ip
+ !
+ router ospfv3 6
+  router-id 6.6.6.6
+ int tunnel 46
+  ospfv3 6 ipv6 area 34
+  end
+
+!@R4
+conf t
+ ipv6 unicast-routing
+ int tunnel 46
+  no ip add
+  ipv6 add fd00:46::4/64
+  tunnel source lo4
+  tunnel destination 6.6.6.6
+  tunnel mode ipv6ip
+ !
+ router ospfv3 6
+  router-id 4.4.4.4
+ int tunnel 46
+  ospfv3 6 ipv6 area 34
+  end
+show ipv6 ospf neighbor
+show ipv6 route ospf
+
+``````
+
+### OSPFv6 & BGP Redistribution
+
+~~~
+!@R1
+conf t
+ router ospfv3 6
+  address-family ipv6
+   default-information originate always
+ router bgp 1
+  address-family ipv6 unicast
+   redistribute ospf 6 match internal external 1 external 2 include-connected
+   end
+
+
+1. INSERT FFFE 
+ aabb.cc     01.7230 (bia aabb.cc01.7230)
+        FFFE
+
+2. FLIP the 7th bit
+a	a
+
+
+
+___
+
+### DHCPv6
+
+### 🎯 Exercise: Configure a DHCPv6 Server for TELSTRA.COM using the network fd00:6::4:0/112
+Network: 
+First IP: 
+Last Non Anyacst: 
+First Anycast: 
+Lasy Anycast: 
+
+                 fd00:0006:0000:0000:0000:0000:0004:0000/112
+Network: 				      :0001:
+First IP:  				      :0006:
+Last Non Anyacst:   			      :0006:
+First Anycast:    			      :0006:
+Lasy Anycast:    			      :0006:
+
+                 fd00:0006:0000:0000:0000:0000:0004:0000/112
+Network: 				      :0004:
+First IP:  				      :1000:
+Last Non Anyacst:   			      :2000:
+First Anycast:    			      :0000:
+Lasy Anycast:    			      :ffff:
+
+
+Correct answer: 
+
+                 fd00:0006:0000:0000:0000:0000:0004:0000/112
+Network: 	fd00:0006:0000:0000:0000:0000:0004:0000:
+First IP:  	fd00:0006:0000:0000:0000:0000:0004:0001:
+Last Non Anyacst:	fd00:0006:0000:0000:0000:0000:0004:FF7F:
+First Anycast:   fd00:0006:0000:0000:0000:0000:0004:FF80
+Lasy Anycast:    fd00:0006:0000:0000:0000:0000:0004:FFFF
+
+NOT NETWORK: fd00:0006:0000:0000:0000:0000:0005:0000
+
+!@C1
+conf t
+ ipv6 unicast-routing
+ !
+ ipv6 dhcp pool TELSTRA.COM
+  address fd00:6::4:/112
+  domain-name TELSTRA.com
+ !
+ vlan 40
+  name TELSTRA.com
+ int vlan 40
+  no shut
+  ipv6 add fd00:6::4:1/112
+  ipv6 dhcp server TELSTRA.com
+  ipv6 nd managed-config-flag	!M Flag (address via DHCP)
+  ipv6 nd other-config-flag	!O Flag (option via DHCP)
+  end
+
+!@C1
+conf t
+ ipv6 unicast-routing
+ !
+ ipv6 dhcp pool TELSTRA.COM
+  address prefix fd00:6::4:/112
+  domain-name TELSTRA.com
+ !
+ vlan 40
+  name TELSTRA.com
+ int vlan 40
+  no shut
+  ipv6 add fd00:6::4:1/112
+  ipv6 dhcp server TELSTRA.com
+  ipv6 nd managed-config-flag
+  ipv6 nd other-config-flag
+  end
+
+!@A1
+conf t
+ int e0/0
+  sw mode access
+  sw ac vlan 40
+  end
+
+!@A2
+conf t
+ int e1/0
+  sw mode access
+  sw ac vlan 40
+  end
+
+@P1
+conf t
+ int e0/0
+  no ipv6 add
+  ipv6 add dhcp
+  end
+show ipv6 int br | ex una|down
+
+
+@P2
+conf t
+ int e1/0
+  no ipv6 add
+  ipv6 add dhcp
+  end
+show ipv6 int br | ex una|down
+show hosts | inc Domain
+
+1. Manual
+2. DHCPv6
+3. 
+
+
+!@C1
+conf t
+ int vlan 50
+  ipv6 add FD00:8::2/64
+  ipv6 nd router-preference high
+  end
+
+
+______________
+
+## IPv6 First Hop Security
+
+1. __NDGUARD__		= to prevent router solicatations
+2. __DHCPGUARD__	= DHCP SNOOPING
+3. __NDINSPECTION__	= ARP INSPECTION
+
+
+______________
+
+IS-IS = NET 
+Network Entity Table = NSAP (Network Service Access Point)
+(Interconnected System - Interconnected System)
+Area ID	.	SYSTEM ID	.	Net Selector
+11.1111	.	0000.0000.0001	.	00
+11.1111.0000.0000.0001.00  ====> NET
+
+______________
+
+!@PS2
+conf t
+ int lo0
+  ip add 172.16.2.2 255.255.255.255
+ ip routing
+ router isis MPLS
+  router-id lo0
+  net 22.2222.0000.0000.0023.00
+  is-type level-1
+  passive-interface lo0
+ int lo0
+  ip router isis MPLS
+ int e1/0
+  ip router isis MPLS
+  isis network point-to-point
+ int range vlan 69,vlan70,vlan75,vlan80
+  ip router isis MPLS
+  end
+
+
+
+!@PE-Y
+conf t
+ router isis MPLS
+  router-id lo0
+  net 22.2222.0000.0000.0021.00
+  is-type level-1
+  passive-interface lo0
+  !
+ int lo0
+  ip router isis MPLS
+ int e0/1
+  ip router isis MPLS
+  isis network point-to-point
+  end
+
+
+
+!@PE-Z
+conf t
+ router isis MPLS
+  router-id lo0
+  net 22.2222.0000.0000.0022.00
+  is-type level-1
+  passive-interface lo0
+  !
+ int lo0
+  ip router isis MPLS
+ int range e1/0, e0/2
+  ip router isis MPLS
+  isis network point-to-point
+  end
+
+
+!@PCore-B
+conf t
+ router isis MPLS
+  router-id lo0
+  net 22.2222.0000.0000.0020.00
+  is-type level-1-2
+  passive-interface lo0
+  !
+ int lo0
+  ip router isis MPLS
+ int range e0/2, e1/1-3
+  ip router isis MPLS
+  isis network point-to-point
+  end
+
+
+!@Change RID of RouteReflector (RR)
+mpls ldp router-id lo0 force
+
+
+
+
+_________________
+
+
+ISIS - LDP Labels
+VRF
+ - RD
+ - RT
+
+mpBGP  - VPNv4
+
+
+
+
+!@PE-A
+conf t
+ router bgp 65000
+  address-family ipv4 vrf BPI
+  neighbor 10.1.1.1 as-override
+ router isis MPLS
+  is-type level-1-2
+  end
+
+!@PE-Z
+conf t
+ router bgp 65000
+  address-family ipv4 vrf BPI
+  neighbor 10.1.1.5 as-override
+ router isis MPLS
+  is-type level-1-2
+  end
+
+!@BPO-A
+conf t
+ router isis MPLS
+  router-id lo0
+  net 11.1111.0000.0000.0015.00
+  is-type level-1-2
+  passive-interface lo0
+  !
+ int lo0
+  ip router isis MPLS
+ int e0/0
+  ip router isis MPLS
+  isis network point-to-point
+  end
+
+!@BPO-B
+conf t
+ router isis MPLS
+  router-id lo0
+  net 22.2222.0000.0000.0024.00
+  is-type level-1-2
+  passive-interface lo0
+  !
+ int lo0
+  ip router isis MPLS
+ int e0/0
+  ip router isis MPLS
+  isis network point-to-point
+  end
+
+_________________
+
+
+!!! NOTE: This section is part/one of the questions in ENARSI
+
+<<<<<<<<<<<<<<<<<<<< --- CONFIGURE OSPF TO PING BPO-A AND BPO-B --- >>>>>>>>>>>>>>>>>>>>>>>>
+
+
+!@PE-B
+conf t
+ router ospf 1 vrf BPO  
+  network 10.1.1.0 0.0.0.3 area 0
+  redistribute bgp 65000 subnets
+ router bgp 65000
+  address-family ipv4 vrf BPO
+  redistribute ospf 1
+ router isis MPLS
+  is-type level-1-2
+  end
+show ip ospf neighbor
+sh ip ospf neighbor
+sh ip route vrf BPO
+sh run | s ospf
+
+
+!@PE-Y
+conf t
+ router ospf 1 vrf BPO  
+  network 10.1.1.4 0.0.0.3 area 0
+  redistribute bgp 65000 subnets
+ router bgp 65000
+  address-family ipv4 vrf BPO
+  redistribute ospf 1
+ router isis MPLS
+  is-type level-1-2
+  end
+
+
+BPO-A
+conf t
+ router ospf 1
+  network 192.168.1.1 0.0.0.0 area 0
+  end 
+
+BPO-B
+conf t
+ router ospf 1
+  network 192.168.1.2 0.0.0.0 area 0
+  end 
+
+
+<<<<<<<<<<<<<<<<<< --- SHOW COMMANDS TO CHECK OSPF NEIGHBOR AND VRF --- >>>>>>>>>>>>>>>>>>>>>>
+
+show ip ospf neighbor
+sh ip ospf neighbor
+sh ip route vrf BPO
+sh run | s ospf
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< --- END --- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+PHASE 1 crypto isakmp policy
+
+perfect forward secrecy (PFS)
+
+ephemeral / eph key (Search)
+
+PHASE 2 IKE SA (for negotiation)
+
+IPSec tunnel (user)
+
+
+REVIEW ### VTI IPSec (Line 2470)
+
+
+show ip route
+show ip crypto ikev2 sa
+show crypto ipsec sa
+
+config L2VPN
+
+
+!@PS1,PS2
+conf t
+ vlan dot1q tag native
+ int e0/0
+  l2protocol-tunnel stp
+  l2protocol-tunnel vtp
+  l2protocol-tunnel cdp
+  end
+
+
+
+
+
+
+
