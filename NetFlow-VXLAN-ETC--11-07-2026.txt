@@ -1,0 +1,247 @@
+edge:
+http://localhost:3000
+admin
+C1sc0123
+
+sudo su
+ifconfig eth0 192.168.103.101 netmask 255.255.255.0 up
+route add default gw 192.168.103.123
+
+sudo su
+ifconfig eth0 192.168.102.101 netmask 255.255.255.0 up
+route add default gw 192.168.102.123
+
+R1-R3
+conf t
+line vty 20 99
+ transport input all
+ login local
+end
+
+CMD
+nmap -v <enter ip add e.g. 192.168.102.123>
+
+R1-R3
+conf t
+service finger
+service tcp-small-servers
+service udp-small-servers
+ip dns server
+ip http server
+ip http secure-server
+telephony-service
+max-ephone 2
+max-dn 4
+ip source-address 192.168.102.13 port 2000
+voice service voip
+ allow-connections sip to sip
+ sip
+   registrar server expires max 600 min 60
+ voice register global
+  mode cme
+  source-address 192.168.102.13 port 5060
+  max-dn 12
+  max-pool 12
+end
+
+
+create:
+flow record: CCNPENCOR-REC
+flow export: CCNPENCOR-EXP
+flow monitor: CCNPENCOR-MON
+	apply gi1 outbound
+
+conf t
+no flow record NF-RECORD
+no flow exporter NF-EXPORTER
+no flow monitor NF-MONITOR
+
+ADVANCED CCNP/CCIE LEVEL SKILSS
+step 1: create AAA client
+key: keykeymo
+
+step 2: create AAA policies
+
+shell:priv-lvl=15
+
+
+*****************
+
+AAA/RADIUS\
+
+conf t
+ username admin privilege 15 secret pass
+ aaa new-model
+ radius server WINRAD
+  address ipv4 208.8.8.224 auth-port 1812 acct-port 1813
+  key keykeymo
+  exit
+ aaa group server radius RADGROUP
+  server name WINRAD
+  exit
+ aaa authentication login default group RADGROUP local
+ aaa authorization exec default group RADGROUP local
+ line vty 0 14
+  login authentication default
+ end
+
+*******************
+
+NXOS-1
+
+checkpoint BrandNew
+hostname nexusJP
+int lo 1
+ip add 1.1.1.1/32
+end
+sh ip int br
+
+conf t
+feature BGP
+checkpoint ConfigJapan
+
+sh 
+
+******************
+!Basic VXLAN Configuration
+
+@NXOS-1 (JP)
+
+conf t
+hostname NexusJP
+int lo1
+ip add 1.1.1.1/32
+feature bgp
+feature ospf
+feature interface-vlan
+feature nv overlay
+feature vn-segment-based
+system jumbomtu 9216 
+checkpoint basicVXLAN
+
+@NXOS-2 (PH)
+
+conf t
+hostname NexusPH
+int lo1
+ip add 2.2.2.2/32
+feature bgp
+feature ospf
+feature interface-vlan
+feature nv overlay
+feature vn-segment-based
+system jumbomtu 9216
+
+!VXLAN Setup
+
+@NXOS-JP
+conf t
+router ospf 10
+int e1/1
+ no switchport 
+ ip add 100.1.1.1/30
+ ip router ospf 10 area 0
+ no shut
+ exit
+
+int loopback 0
+ ip add 10.10.10.10/32
+ ip router ospf 10 area 0
+ exit
+
+vlan 50
+ vn-segment 5000
+ exit
+
+int eth 1/5-6
+ switchport access vlan 50
+ exit
+
+Interface Nve1
+ no shutdown
+source-interface loopback 0
+ member vni 5000
+  ingress-replication protocol static
+  peer-ip 20.20.20.20
+end
+
+
+@NXOS-PH
+conf t
+router ospf 10
+int e1/1
+ no switchport 
+ ip add 100.1.1.2/30
+ ip router ospf 10 area 0
+ no shut
+ exit
+
+int loopback 0
+ ip add 20.20.20.20/32
+ ip router ospf 10 area 0
+ exit
+
+vlan 50
+ vn-segment 5000
+ exit
+
+int eth 1/5-6
+ switchport access vlan 50
+ exit
+
+Interface Nve1
+ no shutdown
+source-interface loopback 0
+ member vni 5000
+  ingress-replication protocol static
+  peer-ip 10.10.10.10
+end
+
+
+===TEST===
+sh nve vni
+
+SECURE CRT
+TELNET 208.8.8.170
+port 32904 (R1)
+port 32899 (R3)
+
+
+@R1(JP)
+conf t
+hostname R1-JP
+int g0/0
+no shut
+ip add 50.0.0.1 255.0.0.0
+end
+
+@R3(PH)
+conf t
+hostname R3-PH
+int g0/0
+no shut
+ip add 50.0.0.3 255.0.0.0
+end
+
+@R2(JP)
+conf t
+hostname R2-JP
+int g0/0
+no shut
+ip add 50.0.0.2 255.0.0.0
+end
+
+@R4(PH)
+conf t
+hostname R4-PH
+int g0/0
+no shut
+ip add 50.0.0.4 255.0.0.0
+end
+
+****TEST****
+!ping from R3-PH > R1-JP
+ping 50.0.0.1
+
+!ping from R4-PH > R2-JP
+ping 50.0.0.2
