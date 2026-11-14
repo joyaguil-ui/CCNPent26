@@ -1,0 +1,507 @@
+
+cd desktop
+mkdir ccnp_d5
+cd ccnp_d5
+git clone -b ccnp https://github.com/4rthurcyber08/rivan_day2
+git clone https://github.com/4rthurcyber08/sshautomate
+
+!@EVENGLAB
+username: rivan
+password: C1sc0123
+
+> DARK MODE to see IP Address
+> hover to the device to see telnet port for SecureCRT
+
+Rivancorp SDWAN Deployment Lab
+
+----
+Control Plane - 
+Data Plae - 
+Management Plane - CLI-SSH, TELNET, CONSOLE; GUI; NETCONF	(vMANAGER)
+RESTCONF
+
+Orchestration Plane - vSmart / Cisco Controller
+
+vEDGE - cEDGE		data plane
+vBOND - cVALIDATOR	orchestration plane
+vSMART - cCONTROLLER	control plane	OMP (Overlay Management Protocol)
+vMANAGER - cMANAGER	management plane
+
+> add vMANAGER ip add to CMD to make it pingable
+route add 10.69.255.13 mask 255.255.255.255 10.69.255.6 -p
+
+ACCESS vMANAGER GUI:
+https://10.69.255.13:8443
+
+USERNAME: admin
+PASS: C1sc0123
+
+> TELNET vMANAGER/vSMART/vVALIDATOR to secureCRT
+> 
+USERNAME: admin
+PASS: C1sc0123
+
+!@vManage
+vshell
+cd /home/admin/pkicerts/
+request nms all status
+request root-cert-chain install
+request csr upload
+request certificate install
+
+!@vBOND and vMANAGE
+request vedge add chassis-num 5f4be17b-8e6a-46ae-9467-35b26f5d569a serial-num 07
+
+!@vEdge-Mindanao
+request csr upload /home/admin/pkicerts/min.csr
+request certificate install
+request certificate install home/admin/pkicerts/grant.ca
+
+show certificate serial
+Chassis number: 5f4be17b-8e6a-46ae-9467-35b26f5d569a serial number: 07
+
+
+!@OPEN_SSL COMMANDS
+openssl req -in /home/admin/pkicerts/min.csr -noout -text
+openssl x509 -in /home/admin/pkicerts/rivanpki.ca
+vEdge-MINDANAO:~$ openssl x509 -in /home/admin/pkicerts/rivanpki.ca -noout -text 
+
+
+!@ PKI-SERVER (CA COMMANDS)
+crypto pki export rivanpki pem terminal
+crypto pki server rivanpki request pkcs10 terminal
+
+NOTES:
+
+request nms all status (!check for application server; value should be 1000/9600 or above to verify GUI is working)
+> inster to vEdge Mindana
+	request root-cert-chain install /home/admin/pkicerts/rivanpki.ca
+
+
+create templates to vMANAGE GUI
+> Configuration > Templates
+> look for vEdge Cloud
+> Configuration > Certificates > Send to Controllers (wait for status SUCCESS)
+
+
+
+TELNET vCLOUD
+pass: pass
+
+!@Cloud (BGP Config)
+conf t
+ int lo8
+  ip add 8.8.8.8 255.255.255.255
+ router bgp 1
+  bgp log-neighbor-changes
+  neighbor 192.168.20.1 remote-as 100
+  neighbor 192.168.20.5 remote-as 100
+  neighbor 192.168.20.9 remote-as 100
+  address-family ipv4
+   neighbor 192.168.20.1 activate
+   neighbor 192.168.20.5 activate
+   neighbor 192.168.20.9 activate
+   neighbor 192.168.20.1 as-override
+   neighbor 192.168.20.5 as-override
+   neighbor 192.168.20.9 as-override
+   network 8.8.8.8 mask 255.255.255.255
+   network 192.168.20.0 mask 255.255.255.0
+   network 172.16.10.0 mask 255.255.255.248
+   network 10.69.255.0 mask 255.255.255.248
+   end
+
+> FOR basic troubleshooting
+show ip ospf neighbor
+show run
+
+CA
+
+****************************************************
+>>>>>>>>>>>>>>> RESTCONF & NETCONF <<<<<<<<<<<<<<<<<
+****************************************************
+
+!@DEVOPS (CSR1000v)
+conf t
+ hostname DEVOPS
+ enable secret pass
+ service password-encryption
+ no logging cons
+ no ip domain lookup
+ line vty 0 14
+  transport input all
+  password pass
+  login local
+  exec-timeout 0 0
+ int g1
+  ip add 208.8.8.11 255.255.255.0
+  no shut
+ int g2
+  ip add 192.168.102.11 255.255.255.0
+  no shut
+ int g3
+  ip add 11.11.11.113 255.255.255.224
+  no shut
+ !
+ username admin privilege 15 secret pass
+ ip http server
+ ip http secure-server
+ ip http authentication local
+ ip route 0.0.0.0 0.0.0.0 208.8.8.2
+ end
+wr
+!
+
+
+TELNET: 192.168.102.11
+PORT: 23
+User: admin
+Pass: pass
+
+
+
+from pprint import pp as print
+
+
+py_dictionary = {
+    'key_string': 'value_string',
+    'key_int': 1,
+    'key_float': 1.0,
+    'key_boolean': True,
+    'key_list': [True, 2, 3.0, '5'],
+    'key_dictionary': {
+        'nested' : [
+            'I\'m',
+            'nested',
+            'data'
+        ]
+    }
+}
+
+
+print(py_dictionary['key_dictionary']['nested'][2])
+
+!@csr.py
+import netmiko
+from netmiko import ConnectHandler
+
+### DEVICE INFO
+csr = {
+    'device_type': 'cisco_ios',
+    'host': '192.168.102.11',
+    'port': '22',
+    'username': 'admin',
+    'password': 'pass',
+    'secret': 'pass'
+}
+
+### CONFIG
+config = [
+    'interface loopback 1',
+    'ip add 1.1.1.1 255.255.255.255',
+    'description VIA-PYTHON',
+    'end'
+]
+
+cli = ConnectHandler(**csr)
+cli.enable()
+cli.send_config_set(config)
+siib = cli.send_command('show ip int br')
+cli.disconnect()
+
+print (siib)
+
+****************************************************
+>>>>>>>>>>>>>>> CSR.PY <<<<<<<<<<<<<<<<<
+****************************************************
+
+import netmiko
+from netmiko import ConnectHandler
+import json
+
+with open('csr.json', 'r') as jfile:
+    pfile = json.load(jfile)
+    #print(pfile)
+
+### DEVICE INFO
+csr = {
+    'device_type': 'cisco_ios',
+    'host': '192.168.102.11',
+    'port': '22',
+    'username': 'admin',
+    'password': 'pass',
+    'secret': 'pass'
+}
+
+### CONFIG
+config = [
+    f'interface {pfile["type"]} {pfile["id"]}',
+    f'ip add {pfile["ipv4"]["ip"]} {pfile["ipv4"]["mask"]}',
+    f'description {pfile["ipv4"]["desc"]}',
+    'end'
+]
+
+#print(config)
+
+cli = ConnectHandler(**csr)
+cli.enable()
+cli.send_config_set(config)
+siib = cli.send_command('show ip int br')
+cli.disconnect()
+
+print (siib)
+
+
+
+RESTCONF
+SERIALIZATION LANG: JSON/XML
+PROTOCOL: HTTPS
+PORT: 443
+METHOD: HTTP METHOD REQUESTS (GET, PUT, PATCH, DELETE)
+
+NETCONF
+SERIALIZATION LANG: XML
+PROTOCOL: SSH
+PORT: 830
+METHOD: RPC
+
+
+enable NETCONF on DEVOPS
+enable
+netconf-yang
+show netconf-yang status
+
+open NETCONF SecureCRT
+
+-------------------------------
+*******TUNNEL PROPERTIES*******
+-------------------------------
+- IP
+- Source Interface
+
+
+
+
+!@E1,E2 (HUBS)
+conf t
+ crypto ikev2 proposal PROP1
+  encr aes-cbc-256
+  integrity sha256
+  group  14
+ crypto ikev2 proposal PROP2
+  encr aes-gcm-256
+  prf sha256
+  group  14
+ !
+ crypto ikev2 policy IKEV2-POL1
+  proposal PROP1
+  proposal PROP2
+ !
+ crypto ikev2 keyring KEY1
+  peer DMVPN-EDGES
+   address 0.0.0.0 0.0.0.0
+   pre-shared-key C1sc0123
+ !
+ crypto ikev2 profile IKEV2-PROF1
+  match identity remote address 0.0.0.0 0.0.0.0
+  authentication remote pre-share
+  authentication local pre-share
+  keyring local KEY1
+  lifetime 86400
+  end
+
+!@E3,E4,E5 (SPOKES)
+conf t
+ crypto ikev2 proposal PROP1
+  encr aes-cbc-256
+  integrity sha256
+  group  14
+ crypto ikev2 proposal PROP2
+  encr aes-gcm-256
+  prf sha256
+  group  14
+ !
+ crypto ikev2 policy IKEV2-POL1
+  proposal PROP1
+  proposal PROP2
+ !
+ crypto ikev2 keyring KEY1
+  peer HUB1
+   address 1.10.1.10 255.255.255.255
+  peer HUB2
+   address 2.20.2.20 255.255.255.255
+   pre-shared-key C1sc0123
+ !
+ crypto ikev2 profile IKEV2-PROF1
+  match identity remote address 1.10.1.10
+  match identity remote address 2.20.2.20
+  authentication remote pre-share
+  authentication local pre-share
+  keyring local KEY1
+  lifetime 86400
+  end
+
+****PHASE 2****
+1. TRANSFORM SET
+2. IPSEC PROFILE
+
+!@E1,E2,E3,E4,E5
+conf t
+ crypto ipsec transform-set TS1 esp-aes 256 esp-sha256-hmac
+  mode tunnel
+ crypto ipsec transform-set TS2 esp-gcm 256
+  mode tunnel
+ !
+ crypto ipsec profile IPSEC-PROF1
+  set transform-set TS1 TS2
+  set ikev2-profile IKEV2-PROF1
+  set pfs group14
+  end
+
+****TUNNEL CONFIG****
+
+!@E1
+conf t
+ int tunnel0
+  ip add 172.16.1.254 255.255.255.0
+  tunnel mode gre multipoint
+  tunnel source e0/1
+  ip nhrp network-id 12345
+  ip nhrp authentication C1sc0123
+  ip nhrp map multicast dynamic
+  ip nhrp redirect
+  !
+ no ip access-list extended NAT
+ ip access-list extended NAT
+  deny ip host 10.1.1.1 host 10.2.2.1
+  deny ip host 10.1.1.1 192.168.3.0 0.0.0.255
+  deny ip host 10.1.1.1 192.168.4.0 0.0.0.255
+  deny ip host 10.1.1.1 192.168.5.0 0.0.0.255
+  permit ip 10.1.1.0 0.0.0.3 any
+  end
+
+!@E2
+conf t
+ int tunnel0
+  ip add 172.16.1.253 255.255.255.0
+  tunnel mode gre multipoint
+  tunnel source e0/1
+  ip nhrp network-id 12345
+  ip nhrp authentication C1sc0123
+  ip nhrp map multicast dynamic
+  ip nhrp redirect
+ !
+ no ip access-list extended NAT
+ ip access-list extended NAT
+  deny ip host 10.2.2.1 host 10.1.1.1
+  deny ip host 10.2.2.1 192.168.3.0 0.0.0.255
+  deny ip host 10.2.2.1 192.168.4.0 0.0.0.255
+  deny ip host 10.2.2.1 192.168.5.0 0.0.0.255
+  permit ip 10.2.2.0 0.0.0.3 any
+  end
+
+
+__SPOKES__
+~~~
+!@E3
+conf t
+ int tunnel0
+  ip add 172.16.1.3 255.255.255.0
+  tunnel mode gre multipoint
+  tunnel source e0/1
+  ip nhrp network-id 12345
+  ip nhrp authentication C1sc0123
+  ip nhrp map 172.16.1.254 1.10.1.10
+  ip nhrp map 172.16.1.253 2.20.2.20
+  ip nhrp map multicast 1.10.1.10
+  ip nhrp map multicast 2.20.2.20
+  ip nhrp nhs 172.16.1.254
+  ip nhrp nhs 172.16.1.253
+  ip nhrp shortcut
+!
+ no ip access-list extended NAT
+ ip access-list extended NAT
+  deny ip host 192.168.3.101 host 10.1.1.1
+  deny ip host 192.168.3.101 host 10.2.2.1
+  deny ip host 192.168.3.101 192.168.4.0 0.0.0.255
+  deny ip host 192.168.3.101 192.168.5.0 0.0.0.255
+  permit ip 192.168.3.0 0.0.0.255 any
+  end
+
+
+~~~
+!@E4
+conf t
+ int tunnel0
+  ip add 172.16.1.4 255.255.255.0
+  tunnel mode gre multipoint
+  tunnel source e0/1
+  ip nhrp network-id 12345
+  ip nhrp authentication C1sc0123
+  ip nhrp map 172.16.1.254 1.10.1.10
+  ip nhrp map 172.16.1.253 2.20.2.20
+  ip nhrp map multicast 1.10.1.10
+  ip nhrp map multicast 2.20.2.20
+  ip nhrp nhs 172.16.1.254
+  ip nhrp nhs 172.16.1.253
+  ip nhrp shortcut
+ !
+ no ip access-list extended NAT
+ ip access-list extended NAT
+  deny ip host 192.168.4.101 host 10.1.1.1
+  deny ip host 192.168.4.101 host 10.2.2.1
+  deny ip host 192.168.4.101 192.168.3.0 0.0.0.255
+  deny ip host 192.168.4.101 192.168.5.0 0.0.0.255
+  permit ip 192.168.4.0 0.0.0.255 any
+  end
+~~~
+
+<br>
+
+~~~
+!@E5
+conf t
+ int tunnel0
+  ip add 172.16.1.5 255.255.255.0
+  tunnel mode gre multipoint
+  tunnel source e0/1
+  ip nhrp network-id 12345
+  ip nhrp authentication C1sc0123
+  ip nhrp map 172.16.1.254 1.10.1.10
+  ip nhrp map 172.16.1.253 2.20.2.20
+  ip nhrp map multicast 1.10.1.10
+  ip nhrp map multicast 2.20.2.20
+  ip nhrp nhs 172.16.1.254
+  ip nhrp nhs 172.16.1.253
+  ip nhrp shortcut
+ !
+ no ip access-list extended NAT
+ ip access-list extended NAT
+  deny ip host 192.168.5.101 host 10.1.1.1
+  deny ip host 192.168.5.101 host 10.2.2.1
+  deny ip host 192.168.5.101 192.168.3.0 0.0.0.255
+  deny ip host 192.168.5.101 192.168.4.0 0.0.0.255
+  permit ip 192.168.5.0 0.0.0.255 any
+  end
+~~~
+
+
+TROBLESHOOT: PING TUNNELS ON E3
+
+~~~
+
+!@E1,E2
+conf t
+ int tunnel 0
+  no ip split-horizon eigrp 100
+  no ip next-hop-self eigrp 100
+  end
+
+!@E3,E4,E5
+show ip route 
+
+
+
+
+
+
+
